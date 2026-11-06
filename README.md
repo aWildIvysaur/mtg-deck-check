@@ -1,4 +1,4 @@
-# mtg-deck-check
+# Magic: The Gathering deck checker
 Using scryfall's API, checks to see if your MTG deck is legal in your favourite format<br>
 Including:
 - The correct number of cards
