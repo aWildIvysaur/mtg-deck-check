@@ -1,5 +1,8 @@
 #!/usr/bin/perl
 
+use LWP::UserAgent();
+use JSON::PP qw(decode_json encode_json);
+
 sub LoadFromTXT {
     open( DATA, "<deck.txt" ) or die "Couldn't open file deck.txt, $!";
 
@@ -62,8 +65,60 @@ sub CardCount {    #1=>Mainboard 2=>Sideboard 3=>All
 
 }
 
-LoadFromTXT();
-print( "mainboard count = " . CardCount("1") . "\n" );
-print( "sideboard count = " . CardCount("2") . "\n" );
-print( "whole deck count = " . CardCount("3") . "\n" );
+sub BuildCollectionJSON {
+    my ($names) = @_;
+    my @identifiers = map { { name => $_ } } @$names;
 
+    return encode_json({ identifiers => \@identifiers });
+}
+
+sub CheckLegalCards {
+    my $legal = 1;
+    
+    my $ua = LWP::UserAgent->new(timeout => 10);
+    $ua->env_proxy;
+
+    my @cards = keys %mainboard;
+    my $payload = BuildCollectionJSON(\@cards);
+
+    my $response = $ua->post(
+        "https://api.scryfall.com/cards/collection",
+        'Content-Type' => 'application/json',
+        'User-Agent' => 'IvyDeckCheck/0.3',
+        'Accept' => 'application/json;q=0.9,*/*;q=0.8',
+        Content => $payload);
+
+        if ($response->is_success) {
+            my $data = decode_json($response->decoded_content);
+
+            if (exists $data->{not_found} && @{$data->{not_found}}) #if "not found" array exists and is not empty
+            {
+                foreach my $missing (@{$data->{not_found}}) {
+                    my $name = $missing->{name};
+                    print("Not found: $name\n");
+                }
+                $legal = 0;
+                return $legal;
+            }
+
+            foreach my $card (@{$data->{data}}) {
+                if (($card->{legalities}{pauper}) ne 'legal') {
+                    $legal = 0;
+                    return $legal;
+                }
+            }
+
+        }
+        else {
+            print($response->status_line);
+            $legal = 0;
+            return $legal;
+        }
+    return $legal
+}
+
+LoadFromTXT();
+if (CheckLegalCards() == 1){
+    print("All cards are legal\n")
+}
+print("done\n");
