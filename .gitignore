@@ -42,3 +42,6 @@ inc/
 
 # Visual Studio Code
 .vscode/
+
+# My tests
+htmltest.pl
